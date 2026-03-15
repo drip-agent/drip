@@ -19,7 +19,7 @@ import {
  * Observability: wallet adapter logs connection events to console natively.
  */
 
-const MAINNET_FALLBACK = "https://api.mainnet-beta.solana.com";
+const MAINNET_FALLBACK = "https://rpc.solanatracker.io/public";
 
 export function SolanaWalletProvider({ children }: { children: ReactNode }) {
   const endpoint =

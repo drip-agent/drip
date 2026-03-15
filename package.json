@@ -14,7 +14,7 @@
     "@coral-xyz/anchor": "0.31.1",
     "@gsap/react": "^2.1.2",
     "@openrouter/ai-sdk-provider": "^2.3.1",
-    "@pump-fun/agent-payments-sdk": "3.0.0",
+    "@pump-fun/agent-payments-sdk": "^3.0.2",
     "@solana/spl-token": "0.4.9",
     "@solana/wallet-adapter-base": "0.9.25",
     "@solana/wallet-adapter-react": "0.15.39",

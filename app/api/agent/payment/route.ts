@@ -93,19 +93,23 @@ export async function POST(req: Request) {
       .serialize({ requireAllSignatures: false })
       .toString("base64");
 
-    // Store invoice details in KV for later verification
-    await kv.set(`invoice:${invoiceId}`, {
-      invoiceId,
-      action: body.action,
-      userPublicKey: body.userPublicKey,
-      amount: Number(amount),
-      memo,
-      startTime,
-      endTime,
-      verified: false,
-      consumed: false,
-      createdAt: new Date().toISOString(),
-    });
+    // Store invoice details in KV for later verification (graceful if KV unconfigured)
+    try {
+      await kv.set(`invoice:${invoiceId}`, {
+        invoiceId,
+        action: body.action,
+        userPublicKey: body.userPublicKey,
+        amount: Number(amount),
+        memo,
+        startTime,
+        endTime,
+        verified: false,
+        consumed: false,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      console.warn(`[payment] KV unavailable — invoice ${invoiceId} stored in-memory only`);
+    }
 
     console.log(`[payment] Invoice created: ${invoiceId}`);
 

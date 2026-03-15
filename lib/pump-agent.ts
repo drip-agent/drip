@@ -25,7 +25,7 @@ export const USDC_MINT = new PublicKey(
 );
 
 /** Default price per agent query in USDC (human-readable) */
-export const QUERY_PRICE_USDC = 0.01;
+export const QUERY_PRICE_USDC = 0.05;
 
 /** USDC has 6 decimals on Solana */
 export const USDC_DECIMALS = 6;
@@ -56,21 +56,9 @@ export function getPumpAgent(): PumpAgentConfig {
     };
   }
 
-  const mintStr = process.env.NEXT_PUBLIC_DRIP_TOKEN_MINT;
-  if (!mintStr) {
-    throw new Error(
-      "[pump-agent] NEXT_PUBLIC_DRIP_TOKEN_MINT env var is required. " +
-        "Set it to the Solana address of the $DRIP token mint created on PumpFun."
-    );
-  }
+  const mintStr = process.env.NEXT_PUBLIC_DRIP_TOKEN_MINT || "DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump";
 
-  const rpcUrl = process.env.SOLANA_RPC_URL;
-  if (!rpcUrl) {
-    throw new Error(
-      "[pump-agent] SOLANA_RPC_URL env var is required. " +
-        "Set it to a Solana RPC endpoint (e.g. Helius, Ankr, or https://api.mainnet-beta.solana.com)."
-    );
-  }
+  const rpcUrl = process.env.SOLANA_RPC_URL || "https://rpc.solanatracker.io/public";
 
   const tokenMint = new PublicKey(mintStr);
   const connection = new Connection(rpcUrl, "confirmed");

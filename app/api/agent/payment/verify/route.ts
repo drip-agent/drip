@@ -60,7 +60,12 @@ export async function POST(req: Request) {
     }
 
     // Look up stored invoice
-    const invoice = await kv.get<StoredInvoice>(`invoice:${body.invoiceId}`);
+    let invoice: StoredInvoice | null = null;
+    try {
+      invoice = await kv.get<StoredInvoice>(`invoice:${body.invoiceId}`);
+    } catch {
+      console.warn(`[payment] KV unavailable — cannot look up invoice ${body.invoiceId}`);
+    }
     if (!invoice) {
       console.error(
         `[payment] Verify failed — invoice not found: ${body.invoiceId}`
@@ -109,26 +114,29 @@ export async function POST(req: Request) {
       );
     }
 
-    // Mark invoice as verified
-    await kv.set(`invoice:${body.invoiceId}`, {
-      ...invoice,
-      verified: true,
-      txSignature: body.txSignature,
-      verifiedAt: new Date().toISOString(),
-    });
+    // Mark invoice as verified + increment revenue counters (graceful if KV unavailable)
+    try {
+      await kv.set(`invoice:${body.invoiceId}`, {
+        ...invoice,
+        verified: true,
+        txSignature: body.txSignature,
+        verifiedAt: new Date().toISOString(),
+      });
 
-    // Increment revenue counters
-    const currentEarned = (await kv.get<string>("revenue:total_earned")) || "0";
-    const newEarned = (
-      parseFloat(currentEarned) + QUERY_PRICE_USDC
-    ).toFixed(USDC_DECIMALS_DISPLAY);
-    await kv.set("revenue:total_earned", newEarned);
-    await kv.incr("revenue:query_count");
+      const currentEarned = (await kv.get<string>("revenue:total_earned")) || "0";
+      const newEarned = (
+        parseFloat(currentEarned) + QUERY_PRICE_USDC
+      ).toFixed(USDC_DECIMALS_DISPLAY);
+      await kv.set("revenue:total_earned", newEarned);
+      await kv.incr("revenue:query_count");
 
-    console.log(
-      `[payment] Invoice verified: ${body.invoiceId}, ` +
-        `total_earned=${newEarned} USDC, tx=${body.txSignature.slice(0, 16)}...`
-    );
+      console.log(
+        `[payment] Invoice verified: ${body.invoiceId}, ` +
+          `total_earned=${newEarned} USDC, tx=${body.txSignature.slice(0, 16)}...`
+      );
+    } catch {
+      console.warn(`[payment] KV unavailable — invoice ${body.invoiceId} verified on-chain but KV not updated`);
+    }
 
     return NextResponse.json({ verified: true, invoiceId: body.invoiceId });
   } catch (err) {
