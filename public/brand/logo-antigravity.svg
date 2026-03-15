@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Primary gradient: icy aqua → aquamarine -->
+    <linearGradient id="main-grad" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#bdfffd"/>
+      <stop offset="40%" stop-color="#9ffff5"/>
+      <stop offset="100%" stop-color="#7cffc4"/>
+    </linearGradient>
+    <!-- Glow gradient for the ascending particles -->
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#bdfffd" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#bdfffd" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Subtle inner refraction -->
+    <linearGradient id="refract" x1="0.2" y1="0.1" x2="0.8" y2="0.9">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Drop shadow filter -->
+    <filter id="dropshadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="4"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.15"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Soft glow behind main drop -->
+    <filter id="softglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="20" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background glow aura -->
+  <ellipse cx="256" cy="240" rx="120" ry="140" fill="url(#glow)" opacity="0.4"/>
+
+  <!-- Main droplet — inverted (point DOWN, floating UP) — antigravity -->
+  <g filter="url(#dropshadow)" transform="translate(256, 220)">
+    <!-- The primary droplet shape: rotated 180° so it "falls" upward -->
+    <path
+      d="M0 -120
+         C0 -120, -72 -20, -72 30
+         A72 72 0 0 0 72 30
+         C72 -20, 0 -120, 0 -120Z"
+      fill="url(#main-grad)"
+      transform="rotate(180)"
+    />
+    <!-- Inner refraction highlight -->
+    <ellipse cx="14" cy="50" rx="22" ry="32" fill="url(#refract)" transform="rotate(180)"/>
+    <!-- Crisp specular highlight -->
+    <ellipse cx="18" cy="72" rx="8" ry="12" fill="#ffffff" opacity="0.3" transform="rotate(180)"/>
+  </g>
+
+  <!-- Ascending micro-droplets — particles floating upward (antigravity) -->
+  <!-- Small drop 1 -->
+  <path
+    d="M200 350 C200 350, 194 338, 194 332 A6 6 0 0 0 206 332 C206 338, 200 350, 200 350Z"
+    fill="#9ffff5" opacity="0.7"
+    transform="rotate(180, 200, 341)"
+  />
+  <!-- Small drop 2 -->
+  <path
+    d="M310 370 C310 370, 306 362, 306 358 A4 4 0 0 0 314 358 C314 362, 310 370, 310 370Z"
+    fill="#bdfffd" opacity="0.5"
+    transform="rotate(180, 310, 364)"
+  />
+  <!-- Small drop 3 -->
+  <path
+    d="M230 390 C230 390, 227 384, 227 381 A3 3 0 0 0 233 381 C233 384, 230 390, 230 390Z"
+    fill="#7cffc4" opacity="0.45"
+    transform="rotate(180, 230, 385.5)"
+  />
+  <!-- Tiny particle 4 -->
+  <circle cx="280" cy="360" r="2.5" fill="#bdfffd" opacity="0.5"/>
+  <!-- Tiny particle 5 -->
+  <circle cx="250" cy="380" r="1.8" fill="#9ffff5" opacity="0.35"/>
+  <!-- Tiny particle 6 -->
+  <circle cx="175" cy="375" r="2" fill="#7cffc4" opacity="0.3"/>
+
+  <!-- Ripple rings at the "source" (bottom) — where drops detach from -->
+  <ellipse cx="256" cy="410" rx="50" ry="6" fill="none" stroke="#9ffff5" stroke-width="1" opacity="0.25"/>
+  <ellipse cx="256" cy="410" rx="35" ry="4" fill="none" stroke="#bdfffd" stroke-width="0.8" opacity="0.35"/>
+  <ellipse cx="256" cy="410" rx="20" ry="2.5" fill="none" stroke="#7cffc4" stroke-width="0.6" opacity="0.45"/>
+</svg>

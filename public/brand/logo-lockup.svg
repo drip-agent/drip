@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" width="320" height="64">
+  <defs>
+    <linearGradient id="lockup-icon-gradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bdfffd"/>
+      <stop offset="100%" stop-color="#7cffc4"/>
+    </linearGradient>
+    <linearGradient id="lockup-text-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#bdfffd"/>
+      <stop offset="100%" stop-color="#7cffc4"/>
+    </linearGradient>
+  </defs>
+  <!-- Droplet icon -->
+  <path
+    d="M32 4
+       C32 4, 14 26, 14 38
+       A18 18 0 0 0 50 38
+       C50 26, 32 4, 32 4Z"
+    fill="url(#lockup-icon-gradient)"
+  />
+  <ellipse cx="28" cy="34" rx="6" ry="8" fill="#ffffff" opacity="0.15"/>
+  <!-- "DRIP" wordmark with spacing from icon -->
+  <text
+    x="190" y="44"
+    text-anchor="middle"
+    font-family="'Space Grotesk', 'Arial', sans-serif"
+    font-size="40"
+    font-weight="700"
+    letter-spacing="6"
+    fill="url(#lockup-text-gradient)"
+  >DRIP</text>
+</svg>

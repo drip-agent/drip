@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Water droplet: monochrome white variant -->
+  <path
+    d="M32 4
+       C32 4, 14 26, 14 38
+       A18 18 0 0 0 50 38
+       C50 26, 32 4, 32 4Z"
+    fill="#ffffff"
+  />
+  <!-- Inner highlight for depth -->
+  <ellipse cx="28" cy="34" rx="6" ry="8" fill="#ffffff" opacity="0.15"/>
+</svg>

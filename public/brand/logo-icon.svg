@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="drip-gradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bdfffd"/>
+      <stop offset="100%" stop-color="#7cffc4"/>
+    </linearGradient>
+  </defs>
+  <!-- Water droplet: teardrop top + circular bottom -->
+  <path
+    d="M32 4
+       C32 4, 14 26, 14 38
+       A18 18 0 0 0 50 38
+       C50 26, 32 4, 32 4Z"
+    fill="url(#drip-gradient)"
+  />
+  <!-- Inner highlight for depth -->
+  <ellipse cx="28" cy="34" rx="6" ry="8" fill="#ffffff" opacity="0.15"/>
+</svg>

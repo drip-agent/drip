@@ -1,0 +1,43 @@
+{
+  "name": "drip-agent",
+  "version": "0.1.0",
+  "description": "DRIP — autonomous research intelligence from the command line. Company lookups, people enrichment, and web research powered by AgentCash micropayments.",
+  "keywords": [
+    "drip",
+    "research",
+    "agent",
+    "ai",
+    "company-research",
+    "people-enrichment",
+    "agentcash",
+    "x402"
+  ],
+  "license": "MIT",
+  "author": "DRIP",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drip-agent/drip"
+  },
+  "homepage": "https://drip.surf",
+  "bin": {
+    "drip-agent": "./bin/drip-agent.js"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.3.0",
+    "chalk": "^5.4.0",
+    "commander": "^13.0.0",
+    "ora": "^8.0.0"
+  }
+}

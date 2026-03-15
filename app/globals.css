@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+/* ─── Font integration ─── */
+/* Wire next/font CSS variables to Tailwind theme tokens.
+   @theme inline keeps these as references, not new custom properties. */
+@theme inline {
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+/* ─── Design tokens ─── */
+@theme {
+  /* Palette — DRIP brand colors */
+  --color-icy-aqua: #bdfffd;
+  --color-soft-cyan: #9ffff5;
+  --color-aquamarine: #7cffc4;
+  --color-ocean-mist: #6abea7;
+  --color-blue-slate: #5e6973;
+
+  /* Dark backgrounds */
+  --color-dark-deepest: #0a0f14;
+  --color-dark-surface: #111820;
+  --color-dark-elevated: #1a2230;
+
+  /* Spacing scale (beyond Tailwind defaults) */
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+  --spacing-30: 7.5rem;
+  --spacing-34: 8.5rem;
+
+  /* Border radius conventions */
+  --radius-card: 0.75rem;
+  --radius-pill: 9999px;
+  --radius-button: 0.5rem;
+
+  /* Glow shadows — aqua-tinted for the DRIP aesthetic */
+  --shadow-glow-sm: 0 0 8px 0 rgba(189, 255, 253, 0.15),
+    0 0 4px 0 rgba(189, 255, 253, 0.1);
+  --shadow-glow-md: 0 0 16px 0 rgba(189, 255, 253, 0.2),
+    0 0 8px 0 rgba(159, 255, 245, 0.15);
+  --shadow-glow-lg: 0 0 32px 0 rgba(189, 255, 253, 0.25),
+    0 0 16px 0 rgba(124, 255, 196, 0.2);
+}
+
+/* ─── Base styles ─── */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem;
+  }
+
+  body {
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono), ui-monospace, monospace;
+  }
+}
+
+/* ─── Custom utilities ─── */
+
+@utility glass {
+  backdrop-filter: blur(12px);
+  background-color: rgba(17, 24, 32, 0.6);
+  border: 1px solid rgba(189, 255, 253, 0.1);
+}
+
+@utility glass-strong {
+  backdrop-filter: blur(20px);
+  background-color: rgba(17, 24, 32, 0.85);
+  border: 1px solid rgba(189, 255, 253, 0.08);
+}
+
+@utility gradient-aqua {
+  background: linear-gradient(135deg, #bdfffd, #7cffc4);
+}
+
+@utility gradient-radial-glow {
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(189, 255, 253, 0.08) 0%,
+    rgba(124, 255, 196, 0.04) 40%,
+    transparent 70%
+  );
+}
+
+@utility text-gradient-aqua {
+  background: linear-gradient(135deg, #bdfffd, #7cffc4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}

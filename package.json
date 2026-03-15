@@ -1,0 +1,50 @@
+{
+  "name": "drip",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.58",
+    "@ai-sdk/react": "^3.0.118",
+    "@coral-xyz/anchor": "0.31.1",
+    "@gsap/react": "^2.1.2",
+    "@openrouter/ai-sdk-provider": "^2.3.1",
+    "@pump-fun/agent-payments-sdk": "3.0.0",
+    "@solana/spl-token": "0.4.9",
+    "@solana/wallet-adapter-base": "0.9.25",
+    "@solana/wallet-adapter-react": "0.15.39",
+    "@solana/wallet-adapter-react-ui": "0.9.36",
+    "@solana/wallet-adapter-wallets": "0.19.35",
+    "@solana/web3.js": "1.98.4",
+    "@vercel/kv": "^3.0.0",
+    "@x402/evm": "^2.6.0",
+    "@x402/fetch": "^2.6.0",
+    "ai": "^6.0.116",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "gsap": "^3.14.2",
+    "motion": "^12.36.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^3.5.0",
+    "viem": "^2.47.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

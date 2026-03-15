@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f1419"/>
+      <stop offset="100%" stop-color="#151d24"/>
+    </linearGradient>
+    <linearGradient id="drop-grad" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#bdfffd"/>
+      <stop offset="45%" stop-color="#9ffff5"/>
+      <stop offset="100%" stop-color="#7cffc4"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0.5" cy="0.45" r="0.5">
+      <stop offset="0%" stop-color="#bdfffd" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#bdfffd" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="highlight" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Dark background circle -->
+  <circle cx="200" cy="200" r="200" fill="url(#bg-grad)"/>
+
+  <!-- Subtle glow aura -->
+  <ellipse cx="200" cy="175" rx="100" ry="115" fill="url(#aura)"/>
+
+  <!-- Main antigravity droplet — inverted, floating up from center -->
+  <g transform="translate(200, 170)">
+    <path
+      d="M0 -95
+         C0 -95, -58 -16, -58 24
+         A58 58 0 0 0 58 24
+         C58 -16, 0 -95, 0 -95Z"
+      fill="url(#drop-grad)"
+      transform="rotate(180)"
+    />
+    <!-- Refraction -->
+    <ellipse cx="12" cy="40" rx="18" ry="26" fill="url(#highlight)" transform="rotate(180)"/>
+    <!-- Specular -->
+    <ellipse cx="14" cy="58" rx="6" ry="10" fill="#ffffff" opacity="0.3" transform="rotate(180)"/>
+  </g>
+
+  <!-- Micro droplets ascending -->
+  <path d="M160 280 C160 280,156 272,156 268 A4 4 0 0 0 164 268 C164 272,160 280,160 280Z"
+    fill="#9ffff5" opacity="0.6" transform="rotate(180,160,274)"/>
+  <path d="M245 295 C245 295,242.5 290,242.5 288 A2.5 2.5 0 0 0 247.5 288 C247.5 290,245 295,245 295Z"
+    fill="#bdfffd" opacity="0.45" transform="rotate(180,245,291.5)"/>
+  <circle cx="220" cy="290" r="2" fill="#7cffc4" opacity="0.4"/>
+  <circle cx="185" cy="300" r="1.5" fill="#bdfffd" opacity="0.3"/>
+
+  <!-- Ripple rings -->
+  <ellipse cx="200" cy="320" rx="38" ry="4.5" fill="none" stroke="#9ffff5" stroke-width="0.8" opacity="0.2"/>
+  <ellipse cx="200" cy="320" rx="24" ry="3" fill="none" stroke="#bdfffd" stroke-width="0.6" opacity="0.3"/>
+</svg>
