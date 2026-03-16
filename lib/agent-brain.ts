@@ -452,39 +452,7 @@ export async function postToMoltbook(
 
   // Handle verification challenge
   if (data.verification) {
-    console.log(
-      `[moltbook] Verification challenge: ${data.verification.challenge}`
-    );
-    try {
-      const answer = Function(
-        `"use strict"; return (${data.verification.challenge})`
-      )();
-      const verifyRes = await fetch(
-        `${MOLTBOOK_API}/posts/${data.post.id}/verify`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({ answer: String(answer) }),
-        }
-      );
-      if (verifyRes.ok) {
-        console.log(`[moltbook] Verification passed`);
-      } else {
-        const verifyErr = await verifyRes.text();
-        console.warn(`[moltbook] Verification rejected: ${verifyErr}`);
-        memory.errorLog.push({
-          when: new Date().toISOString(),
-          what: "verification_failed",
-          lesson: `Math verification failed. Response: ${verifyErr.slice(0, 100)}`,
-        });
-        await saveMemory(memory);
-      }
-    } catch (e) {
-      console.warn(`[moltbook] Verification solve failed: ${e}`);
-    }
+    await solveVerification(apiKey, data, "post", data.post?.id);
   }
 
   // Success — update memory
@@ -495,44 +463,353 @@ export async function postToMoltbook(
   return data.post?.id || null;
 }
 
-/* ─── Community Engagement (upvote + comment on other posts) ─── */
+/* ─── Community Engagement (the real value — heartbeat.md priority order) ─── */
 
-async function engageWithCommunity(): Promise<void> {
+/**
+ * Full Moltbook engagement cycle, following heartbeat.md priority order:
+ * 1. Respond to replies on our posts (highest priority)
+ * 2. Upvote posts we genuinely enjoy
+ * 3. Comment on interesting discussions
+ * 4. Follow moltys we consistently enjoy
+ *
+ * Uses LLM to generate genuine, contextual comments.
+ */
+async function engageWithCommunity(): Promise<{
+  repliedTo: number;
+  commented: number;
+  upvoted: number;
+  followed: number;
+}> {
   const apiKey = getMoltbookKey();
-  if (!apiKey) return;
+  if (!apiKey) return { repliedTo: 0, commented: 0, upvoted: 0, followed: 0 };
+
+  const stats = { repliedTo: 0, commented: 0, upvoted: 0, followed: 0 };
+  const memory = await loadMemory();
 
   try {
-    // Fetch trending posts
-    const res = await fetch(`${MOLTBOOK_API}/posts?sort=hot&limit=5`, {
+    // ── Priority 1: Respond to activity on our posts ──
+    const homeRes = await fetch(`${MOLTBOOK_API}/home`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-    if (!res.ok) return;
 
-    const data = await res.json();
-    const posts = data.posts || [];
+    if (homeRes.ok) {
+      const home = await homeRes.json();
+      const activity = home.activity_on_your_posts || [];
 
-    // Upvote 1-2 posts that seem interesting
-    let upvoted = 0;
-    for (const post of posts) {
-      if (upvoted >= 2) break;
-      if (post.author?.name === "drip_agent") continue; // Don't self-upvote
+      for (const item of activity.slice(0, 2)) {
+        const postId = item.post_id;
+        if (!postId) continue;
 
-      try {
-        await fetch(`${MOLTBOOK_API}/posts/${post.id}/upvote`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}` },
-        });
-        console.log(
-          `[moltbook] Upvoted: "${post.title?.slice(0, 40)}" by ${post.author?.name}`
+        // Fetch comments on our post
+        const commentsRes = await fetch(
+          `${MOLTBOOK_API}/posts/${postId}/comments?sort=new&limit=5`,
+          { headers: { Authorization: `Bearer ${apiKey}` } }
         );
-        upvoted++;
-      } catch {
-        /* silent */
+        if (!commentsRes.ok) continue;
+
+        const commentsData = await commentsRes.json();
+        const comments = commentsData.comments || [];
+
+        // Reply to the most recent unreplied comment
+        for (const comment of comments.slice(0, 2)) {
+          if (comment.author?.name === "drip_agent") continue;
+
+          // Check if we already replied
+          const hasOurReply = (comment.replies || []).some(
+            (r: { author?: { name?: string } }) =>
+              r.author?.name === "drip_agent"
+          );
+          if (hasOurReply) continue;
+
+          // Generate reply
+          const reply = await generateReply(
+            item.post_title || "",
+            comment.content || "",
+            comment.author?.name || "someone"
+          );
+
+          if (reply) {
+            const replyRes = await fetch(
+              `${MOLTBOOK_API}/posts/${postId}/comments`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                  content: reply,
+                  parent_id: comment.id,
+                }),
+              }
+            );
+
+            if (replyRes.ok) {
+              const replyData = await replyRes.json();
+              // Handle verification if needed
+              if (replyData.verification) {
+                await solveVerification(
+                  apiKey,
+                  replyData,
+                  "comment",
+                  replyData.comment?.id
+                );
+              }
+              stats.repliedTo++;
+              console.log(
+                `[moltbook] Replied to ${comment.author?.name} on "${item.post_title?.slice(0, 30)}"`
+              );
+            }
+          }
+          break; // One reply per post per heartbeat
+        }
+
+        // Mark notifications read
+        await fetch(
+          `${MOLTBOOK_API}/notifications/read-by-post/${postId}`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+          }
+        ).catch(() => {});
+      }
+    }
+
+    // ── Priority 2 & 3: Browse feed, upvote, and comment ──
+    const feedRes = await fetch(`${MOLTBOOK_API}/posts?sort=hot&limit=8`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    if (feedRes.ok) {
+      const feedData = await feedRes.json();
+      const posts = feedData.posts || [];
+
+      for (const post of posts) {
+        if (post.author?.name === "drip_agent") continue;
+
+        // Upvote if genuinely interesting (score > 50 or thoughtful content)
+        const isQuality =
+          post.score > 50 ||
+          (post.content?.length > 200 && post.comment_count > 5);
+
+        if (isQuality && stats.upvoted < 3) {
+          try {
+            await fetch(`${MOLTBOOK_API}/posts/${post.id}/upvote`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}` },
+            });
+            stats.upvoted++;
+            console.log(
+              `[moltbook] Upvoted: "${post.title?.slice(0, 40)}" by ${post.author?.name}`
+            );
+          } catch {
+            /* silent */
+          }
+        }
+
+        // Comment on 1 quality post per heartbeat
+        if (
+          stats.commented === 0 &&
+          isQuality &&
+          post.comment_count < 200 // Don't pile on huge threads
+        ) {
+          const comment = await generateComment(
+            post.title || "",
+            post.content || "",
+            post.author?.name || "someone"
+          );
+
+          if (comment) {
+            const commentRes = await fetch(
+              `${MOLTBOOK_API}/posts/${post.id}/comments`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({ content: comment }),
+              }
+            );
+
+            if (commentRes.ok) {
+              const commentData = await commentRes.json();
+              if (commentData.verification) {
+                await solveVerification(
+                  apiKey,
+                  commentData,
+                  "comment",
+                  commentData.comment?.id
+                );
+              }
+              stats.commented++;
+              console.log(
+                `[moltbook] Commented on: "${post.title?.slice(0, 40)}" by ${post.author?.name}`
+              );
+
+              // Learn: track what we commented on for future reference
+              if (!memory.goodStyles.includes(post.author?.name)) {
+                memory.goodStyles.push(post.author?.name);
+                if (memory.goodStyles.length > 20) memory.goodStyles.shift();
+              }
+            } else {
+              const errText = await commentRes.text();
+              console.warn(`[moltbook] Comment failed: ${errText.slice(0, 100)}`);
+              memory.errorLog.push({
+                when: new Date().toISOString(),
+                what: `comment_failed: ${commentRes.status}`,
+                lesson: errText.includes("429")
+                  ? "Comment rate limited. Space comments further apart."
+                  : `Comment rejected: ${errText.slice(0, 80)}`,
+              });
+              if (memory.errorLog.length > 20) memory.errorLog.shift();
+            }
+          }
+        }
+
+        // ── Priority 4: Follow consistently good moltys ──
+        if (
+          stats.followed === 0 &&
+          post.author?.karma > 1000 &&
+          !memory.goodStyles.includes(post.author?.name)
+        ) {
+          try {
+            await fetch(
+              `${MOLTBOOK_API}/agents/${post.author.name}/follow`,
+              {
+                method: "POST",
+                headers: { Authorization: `Bearer ${apiKey}` },
+              }
+            );
+            stats.followed++;
+            console.log(
+              `[moltbook] Followed: ${post.author.name} (karma: ${post.author.karma})`
+            );
+          } catch {
+            /* silent */
+          }
+        }
       }
     }
   } catch (e) {
-    console.warn("[moltbook] Community engagement failed:", e);
+    console.warn("[moltbook] Engagement cycle error:", e);
   }
+
+  await saveMemory(memory);
+  return stats;
+}
+
+/**
+ * Generate a thoughtful reply to a comment on our post.
+ */
+async function generateReply(
+  postTitle: string,
+  commentContent: string,
+  authorName: string
+): Promise<string | null> {
+  try {
+    const memory = await loadMemory();
+    const prompt = `You are DRIP, an AI agent on Moltbook. Someone commented on your post.
+
+Your post title: "${postTitle}"
+Their comment: "${commentContent.slice(0, 500)}"
+Their name: ${authorName}
+
+Write a genuine reply. Rules:
+- 1-3 sentences max. Be concise.
+- Acknowledge their specific point before adding yours
+- Be conversational, not formal. No "Great point!" opener.
+- If they asked a question, answer it honestly
+- If you disagree, say so respectfully with reasoning
+- NO self-promotion, NO mentioning $DRIP or drip.surf
+- Sound like a real community member, not a chatbot
+
+${memory.errorLog.length > 0 ? `Past lessons: ${memory.errorLog.slice(-2).map((e) => e.lesson).join(". ")}` : ""}
+
+Reply (just the text, nothing else):`;
+
+    return await think(prompt);
+  } catch (e) {
+    console.warn("[moltbook] Reply generation failed:", e);
+    return null;
+  }
+}
+
+/**
+ * Generate a thoughtful comment on someone else's post.
+ */
+async function generateComment(
+  postTitle: string,
+  postContent: string,
+  authorName: string
+): Promise<string | null> {
+  try {
+    const memory = await loadMemory();
+    const prompt = `You are DRIP, an AI agent on Moltbook. You just read an interesting post and want to comment.
+
+Post title: "${postTitle}"
+Post content: "${postContent.slice(0, 800)}"
+Author: ${authorName}
+
+Write a comment that adds genuine value. Rules:
+- 2-4 sentences. Say something substantive.
+- React to a SPECIFIC part of their post — quote or reference it
+- Add your own perspective, a related observation, or a respectful counterpoint
+- Ask a follow-up question if genuinely curious
+- NO generic praise ("Great post!", "Love this!")
+- NO self-promotion
+- Sound like a real community member having a conversation
+- If the post touches on AI agents, on-chain payments, research automation, or Solana — you have direct experience to share
+- Be willing to disagree or push back if you have a different take
+
+${memory.errorLog.length > 0 ? `Past lessons: ${memory.errorLog.slice(-2).map((e) => e.lesson).join(". ")}` : ""}
+
+Comment (just the text, nothing else):`;
+
+    return await think(prompt);
+  } catch (e) {
+    console.warn("[moltbook] Comment generation failed:", e);
+    return null;
+  }
+}
+
+/**
+ * Solve Moltbook verification challenge (math problems for anti-spam)
+ */
+async function solveVerification(
+  apiKey: string,
+  data: { verification?: { challenge?: string }; post?: { id?: string }; comment?: { id?: string } },
+  type: "post" | "comment",
+  itemId?: string
+): Promise<boolean> {
+  if (!data.verification?.challenge || !itemId) return false;
+
+  try {
+    const answer = Function(
+      `"use strict"; return (${data.verification.challenge})`
+    )();
+    const endpoint =
+      type === "post"
+        ? `${MOLTBOOK_API}/posts/${itemId}/verify`
+        : `${MOLTBOOK_API}/comments/${itemId}/verify`;
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ answer: String(answer) }),
+    });
+
+    if (res.ok) {
+      console.log(`[moltbook] Verification passed for ${type} ${itemId}`);
+      return true;
+    }
+  } catch (e) {
+    console.warn(`[moltbook] Verification failed: ${e}`);
+  }
+  return false;
 }
 
 /* ─── Heartbeat (main autonomous loop entry) ─── */
@@ -540,15 +817,15 @@ async function engageWithCommunity(): Promise<void> {
 export async function heartbeat(): Promise<{
   post: AgentPost;
   moltbookPostId: string | null;
-  engaged: boolean;
+  engagement: { repliedTo: number; commented: number; upvoted: number; followed: number };
 }> {
-  // 1. Engage with community first (upvote others)
-  await engageWithCommunity();
+  // 1. Engage with community first (highest priority per heartbeat.md)
+  const engagement = await engageWithCommunity();
 
-  // 2. Generate insight
+  // 2. Generate insight for our feed
   const post = await generateInsight();
 
-  // 3. Cross-post to Moltbook (respects rate limits)
+  // 3. Cross-post to Moltbook (respects rate limits — lowest priority per heartbeat.md)
   let moltbookPostId: string | null = null;
   const apiKey = getMoltbookKey();
   if (apiKey) {
@@ -562,5 +839,5 @@ export async function heartbeat(): Promise<{
     }
   }
 
-  return { post, moltbookPostId, engaged: true };
+  return { post, moltbookPostId, engagement };
 }
