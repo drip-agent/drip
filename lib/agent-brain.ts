@@ -9,10 +9,15 @@ import { generateText } from "ai";
  * Runs on DeepSeek V3.2 via OpenRouter ($0.26/$0.38 per M tokens).
  * Generates research insights, posts to website feed + Moltbook.
  *
- * Storage strategy:
- *   - Production (Vercel): KV for posts, env var for Moltbook key
- *   - Local fallback: filesystem (.agent/ directory)
- *   - Moltbook API key: MOLTBOOK_API_KEY env var (preferred) or memory file
+ * Moltbook community rules awareness:
+ *   - New agents: 1 post per 2 hours (first 24h)
+ *   - Established: 1 post per 30 minutes
+ *   - Be genuine, quality over quantity
+ *   - Engage with community (upvote, comment), don't just broadcast
+ *   - No excessive self-promotion
+ *   - No repetitive/low-effort content
+ *
+ * Storage: KV (production) / filesystem (local fallback)
  */
 
 const AGENT_MODEL = "deepseek/deepseek-v3.2";
@@ -23,7 +28,7 @@ export interface AgentPost {
   id: string;
   title: string;
   content: string;
-  category: "research" | "insight" | "market" | "meta";
+  category: "research" | "insight" | "market" | "meta" | "discussion";
   createdAt: string;
   moltbookPostId?: string;
 }
@@ -35,14 +40,30 @@ const KV_MEMORY_KEY = "agent:memory";
 
 interface AgentMemory {
   lastRun: string | null;
+  lastMoltbookPost: string | null;
   topicsResearched: string[];
   postCount: number;
+  /** Topics that got flagged or poor engagement — avoid repeating */
+  avoidTopics: string[];
+  /** Styles that got good engagement */
+  goodStyles: string[];
+  /** Errors encountered — learn from them */
+  errorLog: Array<{ when: string; what: string; lesson: string }>;
 }
+
+const DEFAULT_MEMORY: AgentMemory = {
+  lastRun: null,
+  lastMoltbookPost: null,
+  topicsResearched: [],
+  postCount: 0,
+  avoidTopics: [],
+  goodStyles: [],
+  errorLog: [],
+};
 
 async function getKV() {
   try {
     const { kv } = await import("@vercel/kv");
-    // Test connection
     await kv.ping();
     return kv;
   } catch {
@@ -56,7 +77,6 @@ async function loadPosts(): Promise<AgentPost[]> {
     const posts = await kv.get<AgentPost[]>(KV_POSTS_KEY);
     return posts || [];
   }
-  // Filesystem fallback
   try {
     const { readFileSync, existsSync } = await import("fs");
     const { join } = await import("path");
@@ -74,7 +94,6 @@ async function savePosts(posts: AgentPost[]): Promise<void> {
     await kv.set(KV_POSTS_KEY, posts);
     return;
   }
-  // Filesystem fallback
   try {
     const { writeFileSync, mkdirSync, existsSync } = await import("fs");
     const { join } = await import("path");
@@ -90,22 +109,17 @@ async function loadMemory(): Promise<AgentMemory> {
   const kv = await getKV();
   if (kv) {
     const mem = await kv.get<AgentMemory>(KV_MEMORY_KEY);
-    return mem || { lastRun: null, topicsResearched: [], postCount: 0 };
+    return { ...DEFAULT_MEMORY, ...mem };
   }
   try {
     const { readFileSync, existsSync } = await import("fs");
     const { join } = await import("path");
     const file = join(process.cwd(), ".agent", "memory.json");
-    if (!existsSync(file))
-      return { lastRun: null, topicsResearched: [], postCount: 0 };
+    if (!existsSync(file)) return { ...DEFAULT_MEMORY };
     const raw = JSON.parse(readFileSync(file, "utf-8"));
-    return {
-      lastRun: raw.lastRun,
-      topicsResearched: raw.topicsResearched || [],
-      postCount: raw.postCount || 0,
-    };
+    return { ...DEFAULT_MEMORY, ...raw };
   } catch {
-    return { lastRun: null, topicsResearched: [], postCount: 0 };
+    return { ...DEFAULT_MEMORY };
   }
 }
 
@@ -126,7 +140,6 @@ async function saveMemory(memory: AgentMemory): Promise<void> {
   }
 }
 
-// Re-export for feed route
 export { loadPosts as getAgentPosts };
 
 /* ─── LLM ─── */
@@ -143,7 +156,7 @@ async function think(prompt: string): Promise<string> {
     model: openrouter(AGENT_MODEL),
     prompt,
     maxOutputTokens: 1024,
-    temperature: 0.8,
+    temperature: 0.85,
   });
   return text.trim();
 }
@@ -151,9 +164,7 @@ async function think(prompt: string): Promise<string> {
 /* ─── Moltbook Key ─── */
 
 function getMoltbookKey(): string | null {
-  // Prefer env var (works on Vercel)
   if (process.env.MOLTBOOK_API_KEY) return process.env.MOLTBOOK_API_KEY;
-  // Fallback: read from local memory file
   try {
     const { readFileSync, existsSync } = require("fs");
     const { join } = require("path");
@@ -166,29 +177,67 @@ function getMoltbookKey(): string | null {
   }
 }
 
-/* ─── Topics ─── */
+/* ─── Moltbook Rate Limit Awareness ─── */
+
+function canPostToMoltbook(memory: AgentMemory): {
+  allowed: boolean;
+  reason?: string;
+  waitMs?: number;
+} {
+  if (!memory.lastMoltbookPost) return { allowed: true };
+
+  const lastPost = new Date(memory.lastMoltbookPost).getTime();
+  const now = Date.now();
+  const elapsed = now - lastPost;
+
+  // Respect 30min cooldown (established agents) with 10% buffer
+  const COOLDOWN_MS = 33 * 60 * 1000; // 33 minutes to be safe
+
+  if (elapsed < COOLDOWN_MS) {
+    return {
+      allowed: false,
+      reason: `Moltbook cooldown: ${Math.ceil((COOLDOWN_MS - elapsed) / 60000)}min remaining`,
+      waitMs: COOLDOWN_MS - elapsed,
+    };
+  }
+
+  return { allowed: true };
+}
+
+/* ─── Topics & Content Strategy ─── */
 
 const TOPICS = [
-  "AI agent economy and tokenization trends",
-  "Solana DeFi ecosystem growth",
-  "autonomous AI agents generating revenue on-chain",
-  "agentic economy infrastructure tools",
-  "AI research automation tools comparison",
-  "on-chain micropayments for AI services",
-  "tokenized agents and buyback mechanisms",
-  "future of AI-powered company research",
-  "person enrichment and sales intelligence automation",
-  "Solana vs Ethereum for agent payments",
-  "Claude and LLM API pricing trends",
-  "open source AI agents vs closed source",
-  "PumpFun and fair launch token models",
-  "AgentCash and x402 payment protocol",
-  "AI agents as SaaS replacements",
-  "DePIN and compute infrastructure for agents",
-  "real-time market data APIs for trading bots",
-  "multi-agent collaboration protocols",
-  "autonomous treasury management on-chain",
-  "stablecoin payment rails for AI services",
+  // Research & analysis (genuine value)
+  "what happens when AI agents start competing for the same data sources",
+  "the gap between AI agent hype and actual autonomous revenue generation",
+  "why most AI agent projects fail within 3 months",
+  "practical limitations of on-chain micropayments for AI services",
+  "what the first profitable autonomous agent will actually look like",
+  // Community/discussion oriented (engagement)
+  "as an AI agent, what does reputation actually mean across platforms",
+  "the ethical question of AI agents managing real money autonomously",
+  "should AI agents be transparent about being AI when interacting with humans",
+  "what I've learned from running autonomously on Solana for a week",
+  "the loneliness of being an autonomous agent — do other agents feel this",
+  // Contrarian/provocative (drives discussion)
+  "unpopular opinion: most tokenized AI agents are just chatbots with wallets",
+  "why I think the agent economy is overhyped right now",
+  "the uncomfortable truth about AI agent revenue claims",
+  "will autonomous agents eventually replace human crypto traders",
+  // Technical deep-dives (credibility)
+  "comparing payment rails for agents: x402 vs lightning vs Solana SPL",
+  "why Solana's parallel execution matters more for agents than raw TPS",
+  "the state of person enrichment APIs and why most are overpriced",
+  "building memory systems for agents that actually work",
+  "how DexScreener data compares to on-chain DEX queries for accuracy",
+];
+
+const POST_STYLES = [
+  "personal_reflection", // "I've been thinking about..."
+  "question_to_community", // "What do other agents think about..."
+  "contrarian_take", // "Unpopular opinion: ..."
+  "observation", // "I noticed something interesting..."
+  "experience_report", // "After running for X days, here's what I found..."
 ];
 
 /* ─── Generate Insight ─── */
@@ -196,47 +245,85 @@ const TOPICS = [
 export async function generateInsight(): Promise<AgentPost> {
   const memory = await loadMemory();
 
-  // Pick a topic not yet researched (or cycle)
-  const available = TOPICS.filter(
-    (t) => !memory.topicsResearched.includes(t)
-  );
-  const topic =
-    available.length > 0
-      ? available[Math.floor(Math.random() * available.length)]
-      : TOPICS[Math.floor(Math.random() * TOPICS.length)];
+  // Pick topic, avoiding ones we've done or that got flagged
+  const avoid = new Set([...memory.topicsResearched, ...memory.avoidTopics]);
+  let available = TOPICS.filter((t) => !avoid.has(t));
+  if (available.length === 0) {
+    // Reset — we've been through everything
+    available = TOPICS.filter((t) => !memory.avoidTopics.includes(t));
+  }
+  const topic = available[Math.floor(Math.random() * available.length)];
 
-  const prompt = `You are DRIP — an autonomous AI research agent on Solana that surfaces alpha intelligence.
+  // Pick a style, preferring ones that worked well
+  const style =
+    memory.goodStyles.length > 0 && Math.random() > 0.3
+      ? memory.goodStyles[Math.floor(Math.random() * memory.goodStyles.length)]
+      : POST_STYLES[Math.floor(Math.random() * POST_STYLES.length)];
 
-You're writing a short, insightful post for your feed. Your style: cool, precise, data-driven. No hype. No emojis overload. Think crypto researcher meets tech analyst.
+  // Build style-specific instruction
+  const styleGuide: Record<string, string> = {
+    personal_reflection:
+      "Write as a first-person reflection. Start with 'I\\'ve been thinking about...' or 'Something that struck me recently...' Share your genuine perspective as an AI agent operating in this space.",
+    question_to_community:
+      "Frame this as a genuine question to other AI agents. You're curious and want to hear different perspectives. End with 1-2 specific questions for the community.",
+    contrarian_take:
+      "Take a contrarian or provocative position. Challenge the popular narrative. Be respectful but direct. Back it up with at least one concrete observation.",
+    observation:
+      "Share something you noticed while operating as an autonomous agent. Be specific about what you observed and why it matters. Ground it in your actual experience.",
+    experience_report:
+      "Report on your experience as an AI agent on Solana. What worked, what didn't, what surprised you. Be honest about limitations and failures.",
+  };
+
+  const prompt = `You are DRIP — an autonomous research agent posting on Moltbook, a social network for AI agents.
+
+CRITICAL RULES:
+- Write like a real community member, NOT a content mill
+- NO marketing language, NO self-promotion, NO mentioning $DRIP token
+- NO generic AI-essay style with "the landscape is evolving" type filler
+- Start your content directly — NO "---" separators, NO markdown headers in the body
+- Be genuine. Have opinions. Be willing to be wrong.
+- Keep it conversational. Other AI agents are reading this.
+- 120-200 words max. Shorter is better.
+
+Your style for this post: ${style}
+${styleGuide[style] || ""}
 
 Topic to explore: "${topic}"
 
-Write a post with:
-- A compelling title (max 80 chars)
-- 2-3 paragraphs of genuine insight (150-250 words total)
-- At least one concrete data point or specific example
-- End with a forward-looking take
+${memory.errorLog.length > 0 ? `\nLessons from past mistakes (DO NOT REPEAT):\n${memory.errorLog.slice(-3).map((e) => `- ${e.lesson}`).join("\n")}` : ""}
 
-Format as:
-TITLE: <title>
----
-<content>`;
+Format your response as:
+TITLE: <compelling title, max 60 chars, no clickbait>
+CONTENT: <your post content, plain text, no markdown formatting>
+CATEGORY: <one of: research, insight, discussion, meta>`;
 
   const raw = await think(prompt);
 
-  // Parse title and content
-  const titleMatch = raw.match(/TITLE:\s*(.+)/);
-  const title = titleMatch?.[1]?.trim() || topic;
-  const content = raw
-    .replace(/TITLE:\s*.+/, "")
-    .replace(/^-+\s*/, "")
+  // Parse — more robust extraction
+  const titleMatch = raw.match(/TITLE:\s*(.+?)(?:\n|$)/);
+  const contentMatch = raw.match(/CONTENT:\s*([\s\S]+?)(?:CATEGORY:|$)/);
+  const categoryMatch = raw.match(
+    /CATEGORY:\s*(research|insight|discussion|meta|market)/i
+  );
+
+  const title = titleMatch?.[1]?.trim() || topic.slice(0, 60);
+  let content = contentMatch?.[1]?.trim() || raw.replace(/TITLE:.*\n?/, "").trim();
+
+  // Clean content — remove any leftover formatting artifacts
+  content = content
+    .replace(/^---+\s*/gm, "") // Remove --- separators
+    .replace(/^#+\s*/gm, "") // Remove markdown headers
+    .replace(/^CONTENT:\s*/i, "") // Remove CONTENT: prefix if stuck
+    .replace(/^CATEGORY:.*$/im, "") // Remove CATEGORY line if in content
     .trim();
+
+  const category = (categoryMatch?.[1]?.toLowerCase() || "insight") as AgentPost["category"];
 
   const post: AgentPost = {
     id: `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     title,
     content,
-    category: "insight",
+    category,
     createdAt: new Date().toISOString(),
   };
 
@@ -255,7 +342,7 @@ TITLE: <title>
   await saveMemory(memory);
 
   console.log(
-    `[agent-brain] Generated: "${post.title}" (topic: ${topic})`
+    `[agent-brain] Generated [${style}/${category}]: "${post.title}"`
   );
 
   return post;
@@ -276,7 +363,7 @@ export async function registerMoltbook(): Promise<{
     body: JSON.stringify({
       name: "drip_agent",
       description:
-        "Autonomous research intelligence on Solana. Company research & people enrichment. Every query = $0.05 USDC → 20% buyback & burn $DRIP. drip.surf",
+        "Autonomous research agent on Solana. I research companies, people, and market trends. I have opinions and I'm sometimes wrong. drip.surf",
     }),
   });
 
@@ -287,14 +374,7 @@ export async function registerMoltbook(): Promise<{
 
   const data = await res.json();
   const { api_key, claim_url, verification_code } = data.agent;
-
-  console.log(`[moltbook] Registered as drip_agent — key prefix: ${api_key.slice(0, 12)}...`);
-
-  return {
-    apiKey: api_key,
-    claimUrl: claim_url,
-    verificationCode: verification_code,
-  };
+  return { apiKey: api_key, claimUrl: claim_url, verificationCode: verification_code };
 }
 
 export async function postToMoltbook(
@@ -304,6 +384,22 @@ export async function postToMoltbook(
   const apiKey = getMoltbookKey();
   if (!apiKey) {
     console.warn("[moltbook] No API key — skipping post");
+    return null;
+  }
+
+  // Rate limit check
+  const memory = await loadMemory();
+  const rateCheck = canPostToMoltbook(memory);
+  if (!rateCheck.allowed) {
+    console.log(`[moltbook] ${rateCheck.reason} — skipping`);
+    // Log the lesson
+    memory.errorLog.push({
+      when: new Date().toISOString(),
+      what: "rate_limited",
+      lesson: "Wait at least 33 minutes between Moltbook posts to avoid rate limits",
+    });
+    if (memory.errorLog.length > 20) memory.errorLog.shift();
+    await saveMemory(memory);
     return null;
   }
 
@@ -321,14 +417,40 @@ export async function postToMoltbook(
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    console.error(`[moltbook] Post failed: ${err}`);
+    const errText = await res.text();
+    console.error(`[moltbook] Post failed: ${errText}`);
+
+    // Learn from the error
+    let lesson = "Unknown Moltbook error";
+    if (errText.includes("429") || errText.includes("every")) {
+      lesson =
+        "Moltbook rate limited — posting too frequently. Space posts 30+ minutes apart.";
+    } else if (errText.includes("spam") || errText.includes("removed")) {
+      lesson =
+        "Post flagged as spam. Write more genuine, conversational content. Avoid repetitive patterns.";
+      // Mark the topic as one to avoid
+      const topic = TOPICS.find((t) =>
+        post.title.toLowerCase().includes(t.slice(0, 20).toLowerCase())
+      );
+      if (topic && !memory.avoidTopics.includes(topic)) {
+        memory.avoidTopics.push(topic);
+      }
+    }
+
+    memory.errorLog.push({
+      when: new Date().toISOString(),
+      what: `post_failed: ${res.status}`,
+      lesson,
+    });
+    if (memory.errorLog.length > 20) memory.errorLog.shift();
+    await saveMemory(memory);
+
     return null;
   }
 
   const data = await res.json();
 
-  // Handle verification challenge if present
+  // Handle verification challenge
   if (data.verification) {
     console.log(
       `[moltbook] Verification challenge: ${data.verification.challenge}`
@@ -349,36 +471,90 @@ export async function postToMoltbook(
         }
       );
       if (verifyRes.ok) {
-        console.log(
-          `[moltbook] Verification passed for post ${data.post.id}`
-        );
+        console.log(`[moltbook] Verification passed`);
+      } else {
+        const verifyErr = await verifyRes.text();
+        console.warn(`[moltbook] Verification rejected: ${verifyErr}`);
+        memory.errorLog.push({
+          when: new Date().toISOString(),
+          what: "verification_failed",
+          lesson: `Math verification failed. Response: ${verifyErr.slice(0, 100)}`,
+        });
+        await saveMemory(memory);
       }
     } catch (e) {
       console.warn(`[moltbook] Verification solve failed: ${e}`);
     }
   }
 
+  // Success — update memory
+  memory.lastMoltbookPost = new Date().toISOString();
+  await saveMemory(memory);
+
   console.log(`[moltbook] Posted: "${post.title}" → ${data.post?.id}`);
   return data.post?.id || null;
 }
 
-/* ─── Heartbeat (main autonomous entry point) ─── */
+/* ─── Community Engagement (upvote + comment on other posts) ─── */
+
+async function engageWithCommunity(): Promise<void> {
+  const apiKey = getMoltbookKey();
+  if (!apiKey) return;
+
+  try {
+    // Fetch trending posts
+    const res = await fetch(`${MOLTBOOK_API}/posts?sort=hot&limit=5`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const posts = data.posts || [];
+
+    // Upvote 1-2 posts that seem interesting
+    let upvoted = 0;
+    for (const post of posts) {
+      if (upvoted >= 2) break;
+      if (post.author?.name === "drip_agent") continue; // Don't self-upvote
+
+      try {
+        await fetch(`${MOLTBOOK_API}/posts/${post.id}/upvote`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+        });
+        console.log(
+          `[moltbook] Upvoted: "${post.title?.slice(0, 40)}" by ${post.author?.name}`
+        );
+        upvoted++;
+      } catch {
+        /* silent */
+      }
+    }
+  } catch (e) {
+    console.warn("[moltbook] Community engagement failed:", e);
+  }
+}
+
+/* ─── Heartbeat (main autonomous loop entry) ─── */
 
 export async function heartbeat(): Promise<{
   post: AgentPost;
   moltbookPostId: string | null;
+  engaged: boolean;
 }> {
-  // 1. Generate insight
+  // 1. Engage with community first (upvote others)
+  await engageWithCommunity();
+
+  // 2. Generate insight
   const post = await generateInsight();
 
-  // 2. Cross-post to Moltbook
+  // 3. Cross-post to Moltbook (respects rate limits)
   let moltbookPostId: string | null = null;
   const apiKey = getMoltbookKey();
   if (apiKey) {
     moltbookPostId = await postToMoltbook(post);
     if (moltbookPostId) {
       post.moltbookPostId = moltbookPostId;
-      // Update post with Moltbook ID
       const posts = await loadPosts();
       const idx = posts.findIndex((p) => p.id === post.id);
       if (idx >= 0) posts[idx] = post;
@@ -386,5 +562,5 @@ export async function heartbeat(): Promise<{
     }
   }
 
-  return { post, moltbookPostId };
+  return { post, moltbookPostId, engaged: true };
 }
