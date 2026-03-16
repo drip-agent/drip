@@ -109,12 +109,35 @@ function TokenSection() {
     queryCount: number;
   }>(() => getMockRevenue());
   const [copied, setCopied] = useState(false);
+  const [market, setMarket] = useState<{
+    priceUsd: number;
+    marketCap: number;
+    volume24h: number;
+    priceChange24h: number;
+    liquidity: number;
+  } | null>(null);
 
   useEffect(() => {
-    // Update every 30 seconds for smooth growth
+    // Update revenue every 30 seconds
     const interval = setInterval(() => {
       setRevenue(getMockRevenue());
     }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Fetch live market data
+    async function fetchMarket() {
+      try {
+        const res = await fetch("/api/market/drip");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.priceUsd) setMarket(data);
+        }
+      } catch { /* silent */ }
+    }
+    fetchMarket();
+    const interval = setInterval(fetchMarket, 60_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -203,6 +226,50 @@ function TokenSection() {
           </div>
         </GlassPanel>
       </FadeInStagger>
+
+      {/* Live market data */}
+      {market && (
+        <FadeInStagger staggerDelay={0.1} className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <GlassPanel className="text-center">
+            <div className="text-xs text-blue-slate">Price</div>
+            <div className="mt-1 font-heading text-lg font-bold text-icy-aqua">
+              ${market.priceUsd < 0.01
+                ? market.priceUsd.toFixed(6)
+                : market.priceUsd < 1
+                  ? market.priceUsd.toFixed(4)
+                  : market.priceUsd.toFixed(2)}
+            </div>
+          </GlassPanel>
+          <GlassPanel className="text-center">
+            <div className="text-xs text-blue-slate">Market Cap</div>
+            <div className="mt-1 font-heading text-lg font-bold text-soft-cyan">
+              {market.marketCap >= 1_000_000
+                ? `$${(market.marketCap / 1_000_000).toFixed(1)}M`
+                : market.marketCap >= 1_000
+                  ? `$${(market.marketCap / 1_000).toFixed(1)}K`
+                  : `$${market.marketCap.toFixed(0)}`}
+            </div>
+          </GlassPanel>
+          <GlassPanel className="text-center">
+            <div className="text-xs text-blue-slate">24h Volume</div>
+            <div className="mt-1 font-heading text-lg font-bold text-soft-cyan">
+              {market.volume24h >= 1_000_000
+                ? `$${(market.volume24h / 1_000_000).toFixed(1)}M`
+                : market.volume24h >= 1_000
+                  ? `$${(market.volume24h / 1_000).toFixed(1)}K`
+                  : `$${market.volume24h.toFixed(0)}`}
+            </div>
+          </GlassPanel>
+          <GlassPanel className="text-center">
+            <div className="text-xs text-blue-slate">24h Change</div>
+            <div className={`mt-1 font-heading text-lg font-bold ${
+              market.priceChange24h >= 0 ? "text-green-400" : "text-red-400"
+            }`}>
+              {market.priceChange24h >= 0 ? "+" : ""}{market.priceChange24h.toFixed(1)}%
+            </div>
+          </GlassPanel>
+        </FadeInStagger>
+      )}
 
       {/* Buyback explainer */}
       <div className="mt-8 rounded-card border border-ocean-mist/10 bg-dark-surface/50 p-5">
