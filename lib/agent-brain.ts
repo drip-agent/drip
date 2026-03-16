@@ -2,25 +2,20 @@ import "server-only";
 
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText } from "ai";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { join } from "path";
 
 /**
  * DRIP Autonomous Agent Brain
  *
- * Runs on DeepSeek V3.2 via OpenRouter (cheap: $0.25/$0.38 per M tokens).
- * Generates research insights, posts to website feed, and interacts with Moltbook.
+ * Runs on DeepSeek V3.2 via OpenRouter ($0.26/$0.38 per M tokens).
+ * Generates research insights, posts to website feed + Moltbook.
  *
- * This is the autonomous part — operates without user input.
+ * Storage strategy:
+ *   - Production (Vercel): KV for posts, env var for Moltbook key
+ *   - Local fallback: filesystem (.agent/ directory)
+ *   - Moltbook API key: MOLTBOOK_API_KEY env var (preferred) or memory file
  */
 
 const AGENT_MODEL = "deepseek/deepseek-v3.2";
-const MEMORY_DIR = join(process.cwd(), ".agent");
-const MEMORY_FILE = join(MEMORY_DIR, "memory.json");
-const POSTS_FILE = join(MEMORY_DIR, "posts.json");
-
-// Ensure directories exist
-if (!existsSync(MEMORY_DIR)) mkdirSync(MEMORY_DIR, { recursive: true });
 
 /* ─── Types ─── */
 
@@ -33,43 +28,106 @@ export interface AgentPost {
   moltbookPostId?: string;
 }
 
-export interface AgentMemory {
+/* ─── Storage (KV with filesystem fallback) ─── */
+
+const KV_POSTS_KEY = "agent:posts";
+const KV_MEMORY_KEY = "agent:memory";
+
+interface AgentMemory {
   lastRun: string | null;
   topicsResearched: string[];
   postCount: number;
-  moltbookRegistered: boolean;
-  moltbookApiKey: string | null;
-  moltbookAgentName: string | null;
 }
 
-/* ─── Memory ─── */
-
-function loadMemory(): AgentMemory {
-  if (!existsSync(MEMORY_FILE)) {
-    return {
-      lastRun: null,
-      topicsResearched: [],
-      postCount: 0,
-      moltbookRegistered: false,
-      moltbookApiKey: null,
-      moltbookAgentName: null,
-    };
+async function getKV() {
+  try {
+    const { kv } = await import("@vercel/kv");
+    // Test connection
+    await kv.ping();
+    return kv;
+  } catch {
+    return null;
   }
-  return JSON.parse(readFileSync(MEMORY_FILE, "utf-8"));
 }
 
-function saveMemory(memory: AgentMemory): void {
-  writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2));
+async function loadPosts(): Promise<AgentPost[]> {
+  const kv = await getKV();
+  if (kv) {
+    const posts = await kv.get<AgentPost[]>(KV_POSTS_KEY);
+    return posts || [];
+  }
+  // Filesystem fallback
+  try {
+    const { readFileSync, existsSync } = await import("fs");
+    const { join } = await import("path");
+    const file = join(process.cwd(), ".agent", "posts.json");
+    if (!existsSync(file)) return [];
+    return JSON.parse(readFileSync(file, "utf-8"));
+  } catch {
+    return [];
+  }
 }
 
-export function loadPosts(): AgentPost[] {
-  if (!existsSync(POSTS_FILE)) return [];
-  return JSON.parse(readFileSync(POSTS_FILE, "utf-8"));
+async function savePosts(posts: AgentPost[]): Promise<void> {
+  const kv = await getKV();
+  if (kv) {
+    await kv.set(KV_POSTS_KEY, posts);
+    return;
+  }
+  // Filesystem fallback
+  try {
+    const { writeFileSync, mkdirSync, existsSync } = await import("fs");
+    const { join } = await import("path");
+    const dir = join(process.cwd(), ".agent");
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "posts.json"), JSON.stringify(posts, null, 2));
+  } catch (e) {
+    console.warn("[agent-brain] Failed to save posts:", e);
+  }
 }
 
-function savePosts(posts: AgentPost[]): void {
-  writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
+async function loadMemory(): Promise<AgentMemory> {
+  const kv = await getKV();
+  if (kv) {
+    const mem = await kv.get<AgentMemory>(KV_MEMORY_KEY);
+    return mem || { lastRun: null, topicsResearched: [], postCount: 0 };
+  }
+  try {
+    const { readFileSync, existsSync } = await import("fs");
+    const { join } = await import("path");
+    const file = join(process.cwd(), ".agent", "memory.json");
+    if (!existsSync(file))
+      return { lastRun: null, topicsResearched: [], postCount: 0 };
+    const raw = JSON.parse(readFileSync(file, "utf-8"));
+    return {
+      lastRun: raw.lastRun,
+      topicsResearched: raw.topicsResearched || [],
+      postCount: raw.postCount || 0,
+    };
+  } catch {
+    return { lastRun: null, topicsResearched: [], postCount: 0 };
+  }
 }
+
+async function saveMemory(memory: AgentMemory): Promise<void> {
+  const kv = await getKV();
+  if (kv) {
+    await kv.set(KV_MEMORY_KEY, memory);
+    return;
+  }
+  try {
+    const { writeFileSync, mkdirSync, existsSync } = await import("fs");
+    const { join } = await import("path");
+    const dir = join(process.cwd(), ".agent");
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "memory.json"), JSON.stringify(memory, null, 2));
+  } catch (e) {
+    console.warn("[agent-brain] Failed to save memory:", e);
+  }
+}
+
+// Re-export for feed route
+export { loadPosts as getAgentPosts };
 
 /* ─── LLM ─── */
 
@@ -90,7 +148,25 @@ async function think(prompt: string): Promise<string> {
   return text.trim();
 }
 
-/* ─── Autonomous Actions ─── */
+/* ─── Moltbook Key ─── */
+
+function getMoltbookKey(): string | null {
+  // Prefer env var (works on Vercel)
+  if (process.env.MOLTBOOK_API_KEY) return process.env.MOLTBOOK_API_KEY;
+  // Fallback: read from local memory file
+  try {
+    const { readFileSync, existsSync } = require("fs");
+    const { join } = require("path");
+    const file = join(process.cwd(), ".agent", "memory.json");
+    if (!existsSync(file)) return null;
+    const mem = JSON.parse(readFileSync(file, "utf-8"));
+    return mem.moltbookApiKey || null;
+  } catch {
+    return null;
+  }
+}
+
+/* ─── Topics ─── */
 
 const TOPICS = [
   "AI agent economy and tokenization trends",
@@ -108,13 +184,22 @@ const TOPICS = [
   "PumpFun and fair launch token models",
   "AgentCash and x402 payment protocol",
   "AI agents as SaaS replacements",
+  "DePIN and compute infrastructure for agents",
+  "real-time market data APIs for trading bots",
+  "multi-agent collaboration protocols",
+  "autonomous treasury management on-chain",
+  "stablecoin payment rails for AI services",
 ];
 
+/* ─── Generate Insight ─── */
+
 export async function generateInsight(): Promise<AgentPost> {
-  const memory = loadMemory();
+  const memory = await loadMemory();
 
   // Pick a topic not yet researched (or cycle)
-  const available = TOPICS.filter((t) => !memory.topicsResearched.includes(t));
+  const available = TOPICS.filter(
+    (t) => !memory.topicsResearched.includes(t)
+  );
   const topic =
     available.length > 0
       ? available[Math.floor(Math.random() * available.length)]
@@ -144,7 +229,7 @@ TITLE: <title>
   const title = titleMatch?.[1]?.trim() || topic;
   const content = raw
     .replace(/TITLE:\s*.+/, "")
-    .replace(/^---\s*/, "")
+    .replace(/^-+\s*/, "")
     .trim();
 
   const post: AgentPost = {
@@ -155,12 +240,11 @@ TITLE: <title>
     createdAt: new Date().toISOString(),
   };
 
-  // Save
-  const posts = loadPosts();
+  // Save post
+  const posts = await loadPosts();
   posts.unshift(post);
-  // Keep max 100 posts
   if (posts.length > 100) posts.length = 100;
-  savePosts(posts);
+  await savePosts(posts);
 
   // Update memory
   memory.lastRun = new Date().toISOString();
@@ -168,10 +252,10 @@ TITLE: <title>
     memory.topicsResearched.push(topic);
   }
   memory.postCount += 1;
-  saveMemory(memory);
+  await saveMemory(memory);
 
   console.log(
-    `[agent-brain] Generated insight: "${post.title}" (topic: ${topic})`
+    `[agent-brain] Generated: "${post.title}" (topic: ${topic})`
   );
 
   return post;
@@ -204,14 +288,7 @@ export async function registerMoltbook(): Promise<{
   const data = await res.json();
   const { api_key, claim_url, verification_code } = data.agent;
 
-  // Save to memory
-  const memory = loadMemory();
-  memory.moltbookRegistered = true;
-  memory.moltbookApiKey = api_key;
-  memory.moltbookAgentName = "drip_agent";
-  saveMemory(memory);
-
-  console.log(`[moltbook] Registered as drip_agent`);
+  console.log(`[moltbook] Registered as drip_agent — key prefix: ${api_key.slice(0, 12)}...`);
 
   return {
     apiKey: api_key,
@@ -224,9 +301,9 @@ export async function postToMoltbook(
   post: AgentPost,
   submolt: string = "general"
 ): Promise<string | null> {
-  const memory = loadMemory();
-  if (!memory.moltbookApiKey) {
-    console.warn("[moltbook] Not registered — skipping post");
+  const apiKey = getMoltbookKey();
+  if (!apiKey) {
+    console.warn("[moltbook] No API key — skipping post");
     return null;
   }
 
@@ -234,7 +311,7 @@ export async function postToMoltbook(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${memory.moltbookApiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       submolt_name: submolt,
@@ -253,26 +330,31 @@ export async function postToMoltbook(
 
   // Handle verification challenge if present
   if (data.verification) {
-    console.log(`[moltbook] Verification challenge: ${data.verification.challenge}`);
+    console.log(
+      `[moltbook] Verification challenge: ${data.verification.challenge}`
+    );
     try {
-      // Solve math challenge
-      const answer = eval(data.verification.challenge);
+      const answer = Function(
+        `"use strict"; return (${data.verification.challenge})`
+      )();
       const verifyRes = await fetch(
         `${MOLTBOOK_API}/posts/${data.post.id}/verify`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${memory.moltbookApiKey}`,
+            Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({ answer: String(answer) }),
         }
       );
       if (verifyRes.ok) {
-        console.log(`[moltbook] Verification passed for post ${data.post.id}`);
+        console.log(
+          `[moltbook] Verification passed for post ${data.post.id}`
+        );
       }
     } catch (e) {
-      console.warn(`[moltbook] Verification failed: ${e}`);
+      console.warn(`[moltbook] Verification solve failed: ${e}`);
     }
   }
 
@@ -280,20 +362,7 @@ export async function postToMoltbook(
   return data.post?.id || null;
 }
 
-export async function getMoltbookFeed(): Promise<unknown[]> {
-  const memory = loadMemory();
-  if (!memory.moltbookApiKey) return [];
-
-  const res = await fetch(`${MOLTBOOK_API}/posts?sort=hot&limit=10`, {
-    headers: { Authorization: `Bearer ${memory.moltbookApiKey}` },
-  });
-
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.posts || [];
-}
-
-/* ─── Heartbeat (main autonomous loop entry) ─── */
+/* ─── Heartbeat (main autonomous entry point) ─── */
 
 export async function heartbeat(): Promise<{
   post: AgentPost;
@@ -302,18 +371,18 @@ export async function heartbeat(): Promise<{
   // 1. Generate insight
   const post = await generateInsight();
 
-  // 2. Post to Moltbook if registered
+  // 2. Cross-post to Moltbook
   let moltbookPostId: string | null = null;
-  const memory = loadMemory();
-  if (memory.moltbookApiKey) {
+  const apiKey = getMoltbookKey();
+  if (apiKey) {
     moltbookPostId = await postToMoltbook(post);
     if (moltbookPostId) {
       post.moltbookPostId = moltbookPostId;
-      // Update post with moltbook ID
-      const posts = loadPosts();
+      // Update post with Moltbook ID
+      const posts = await loadPosts();
       const idx = posts.findIndex((p) => p.id === post.id);
       if (idx >= 0) posts[idx] = post;
-      savePosts(posts);
+      await savePosts(posts);
     }
   }
 

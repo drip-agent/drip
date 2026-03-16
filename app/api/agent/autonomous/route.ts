@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { heartbeat, generateInsight, registerMoltbook, loadPosts } from "@/lib/agent-brain";
+import {
+  heartbeat,
+  generateInsight,
+  registerMoltbook,
+  getAgentPosts,
+} from "@/lib/agent-brain";
 
 /**
  * POST /api/agent/autonomous — Trigger autonomous agent actions
@@ -8,9 +13,8 @@ import { heartbeat, generateInsight, registerMoltbook, loadPosts } from "@/lib/a
  *   heartbeat — Generate insight + post to Moltbook
  *   generate  — Generate insight only (no Moltbook)
  *   register-moltbook — Register agent on Moltbook
- *   status — Get agent memory/state
+ *   status — Get agent state
  */
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -37,22 +41,17 @@ export async function POST(req: Request) {
           success: true,
           claimUrl: result.claimUrl,
           verificationCode: result.verificationCode,
-          message: "Open the claim URL and verify with your X account (@drip_agents)",
+          message:
+            "Open the claim URL and verify with your X account",
         });
       }
 
       case "status": {
-        const { readFileSync, existsSync } = await import("fs");
-        const { join } = await import("path");
-        const memoryFile = join(process.cwd(), ".agent", "memory.json");
-        const memory = existsSync(memoryFile)
-          ? JSON.parse(readFileSync(memoryFile, "utf-8"))
-          : null;
-        const posts = loadPosts();
+        const posts = await getAgentPosts();
         return NextResponse.json({
-          memory,
           postCount: posts.length,
           latestPost: posts[0] || null,
+          moltbookConfigured: !!process.env.MOLTBOOK_API_KEY,
         });
       }
 
@@ -65,9 +64,6 @@ export async function POST(req: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[autonomous] Error: ${message}`);
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
