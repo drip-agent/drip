@@ -11,6 +11,7 @@ const navLinks = [
   { label: "Features", href: "#features" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Agent", href: "/agent" },
+  { label: "Feed", href: "/feed" },
   { label: "Docs", href: "/docs" },
   { label: "Token", href: "#token" },
 ];

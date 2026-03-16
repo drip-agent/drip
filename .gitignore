@@ -35,3 +35,6 @@ tmp/
 .env.github
 .vercel
 .bg-shell/
+
+# Agent memory
+.agent/
