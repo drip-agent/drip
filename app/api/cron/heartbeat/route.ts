@@ -5,8 +5,18 @@ import { heartbeat } from "@/lib/agent-brain";
  * GET /api/cron/heartbeat — Triggered by Vercel Cron every 10 minutes
  *
  * Generates an autonomous insight and cross-posts to Moltbook.
+ * Also maintains a registry of Moltbook post IDs for the feed.
  * Secured by CRON_SECRET to prevent unauthorized triggers.
  */
+
+// In-memory registry of Moltbook post IDs
+// Persists across warm invocations on the same Vercel instance
+const postRegistry: string[] = [];
+
+export function getPostRegistry(): string[] {
+  return [...postRegistry];
+}
+
 export async function GET(req: Request) {
   // Verify cron secret
   const authHeader = req.headers.get("authorization");
@@ -19,8 +29,15 @@ export async function GET(req: Request) {
   try {
     const result = await heartbeat();
 
+    // Track Moltbook post ID
+    if (result.moltbookPostId) {
+      postRegistry.unshift(result.moltbookPostId);
+      // Keep max 100
+      if (postRegistry.length > 100) postRegistry.length = 100;
+    }
+
     console.log(
-      `[cron] Heartbeat complete: "${result.post.title}" | Moltbook: ${result.moltbookPostId || "skipped"}`
+      `[cron] Heartbeat: "${result.post.title}" | Moltbook: ${result.moltbookPostId || "skipped"} | Registry: ${postRegistry.length} IDs`
     );
 
     return NextResponse.json({
@@ -31,6 +48,7 @@ export async function GET(req: Request) {
         category: result.post.category,
       },
       moltbookPostId: result.moltbookPostId,
+      registrySize: postRegistry.length,
       nextRun: "10 minutes",
     });
   } catch (err) {
