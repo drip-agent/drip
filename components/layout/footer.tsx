@@ -1,12 +1,22 @@
-import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Container } from "@/components/layout/container";
 
-const footerLinks = [
-  { label: "Features", href: "#features" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
+const productLinks = [
+  { label: "Agent", href: "/agent" },
+  { label: "API Docs", href: "/docs" },
+  { label: "Analytics", href: "#features" },
+  { label: "Marketplace", href: "#roadmap" },
+];
+
+const resourceLinks = [
+  { label: "Documentation", href: "/docs" },
+  { label: "Articles", href: "#articles" },
+];
+
+const legalLinks = [
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Terms of Service", href: "/terms" },
 ];
 
 const socialLinks = [
@@ -23,39 +33,24 @@ const socialLinks = [
 
 export function Footer({ className }: { className?: string }) {
   return (
-    <footer
-      className={cn(
-        "border-t border-ocean-mist/10 bg-dark-surface py-12",
-        className
-      )}
-    >
-      <Container>
-        <div className="flex flex-col items-center gap-8 sm:flex-row sm:justify-between">
-          <Link href="/" className="flex items-center">
-            <Image
-              src="/brand/logo-lockup-mono.svg"
-              alt="DRIP"
-              width={100}
-              height={26}
-            />
-          </Link>
-
-          <div className="flex items-center gap-6">
-            <nav className="flex flex-wrap justify-center gap-6">
-              {footerLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-sm text-ocean-mist transition-colors hover:text-icy-aqua"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-
-            <div className="h-4 w-px bg-ocean-mist/20" />
-
-            <div className="flex gap-4">
+    <footer className={cn("border-t border-ocean-mist/10", className)}>
+      {/* Main footer */}
+      <Container size="wide">
+        <div className="grid grid-cols-2 gap-8 py-12 sm:grid-cols-4 lg:gap-16">
+          {/* Brand */}
+          <div className="col-span-2 sm:col-span-1">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-b from-soft-cyan to-aquamarine">
+                <span className="font-mono text-sm font-bold text-dark-deepest">D</span>
+              </div>
+              <span className="font-mono text-sm font-bold tracking-[0.15em] text-white">
+                DRIP
+              </span>
+            </Link>
+            <p className="mt-4 text-sm leading-relaxed text-blue-slate">
+              AI-powered research intelligence for the next generation.
+            </p>
+            <div className="mt-4 flex gap-3">
               {socialLinks.map((link) => (
                 <a
                   key={link.label}
@@ -70,14 +65,71 @@ export function Footer({ className }: { className?: string }) {
               ))}
             </div>
           </div>
-        </div>
 
-        <div className="mt-8 border-t border-ocean-mist/10 pt-8 text-center">
-          <p className="text-sm text-blue-slate">
-            &copy; {new Date().getFullYear()} DRIP. All rights reserved.
-          </p>
+          {/* Product */}
+          <div>
+            <h4 className="text-sm font-semibold text-white">Product</h4>
+            <ul className="mt-4 space-y-3">
+              {productLinks.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-blue-slate transition-colors hover:text-icy-aqua"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Resources */}
+          <div>
+            <h4 className="text-sm font-semibold text-white">Resources</h4>
+            <ul className="mt-4 space-y-3">
+              {resourceLinks.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-blue-slate transition-colors hover:text-icy-aqua"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h4 className="text-sm font-semibold text-white">Legal</h4>
+            <ul className="mt-4 space-y-3">
+              {legalLinks.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-blue-slate transition-colors hover:text-icy-aqua"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </Container>
+
+      {/* Copyright bar */}
+      <div className="border-t border-ocean-mist/10">
+        <Container size="wide">
+          <div className="flex flex-col items-center justify-between gap-2 py-4 sm:flex-row">
+            <p className="text-xs text-blue-slate">
+              &copy; {new Date().getFullYear()} DRIP Intelligence. All rights reserved.
+            </p>
+            <p className="text-xs text-blue-slate">Autonomous Intelligence Since 2025</p>
+          </div>
+        </Container>
+      </div>
     </footer>
   );
 }

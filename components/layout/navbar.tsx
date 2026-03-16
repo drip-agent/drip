@@ -8,12 +8,11 @@ import { Container } from "@/components/layout/container";
 import { Button } from "@/components/ui/button";
 
 const navLinks = [
-  { label: "Features", href: "#features" },
-  { label: "How It Works", href: "#how-it-works" },
-  { label: "Agent", href: "/agent" },
-  { label: "Feed", href: "/feed" },
-  { label: "Docs", href: "/docs" },
+  { label: "Product", href: "#features" },
+  { label: "API", href: "#api" },
   { label: "Token", href: "#token" },
+  { label: "Roadmap", href: "#roadmap" },
+  { label: "FAQ", href: "#faq" },
 ];
 
 export function NavBar({ className }: { className?: string }) {
@@ -41,16 +40,14 @@ export function NavBar({ className }: { className?: string }) {
         className
       )}
     >
-      <Container>
+      <Container size="wide">
         <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <Image
-              src="/brand/logo-lockup-mono.svg"
-              alt="DRIP"
-              width={120}
-              height={32}
-              priority
-            />
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-b from-soft-cyan to-aquamarine">
+              <span className="font-mono text-sm font-bold text-dark-deepest">D</span>
+            </div>
+            <span className="font-mono text-sm font-bold tracking-[0.15em] text-white">DRIP</span>
           </Link>
 
           {/* Desktop links */}
@@ -66,36 +63,42 @@ export function NavBar({ className }: { className?: string }) {
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link href="/agent">
-              <Button size="sm" variant="primary">
-                Try Agent
+          {/* Desktop CTAs */}
+          <div className="hidden items-center gap-3 md:flex">
+            <Link href="/docs">
+              <Button size="sm" variant="ghost">
+                View Docs
               </Button>
             </Link>
-
-            {/* Mobile hamburger */}
-            <button
-              type="button"
-              onClick={() => setMobileOpen((v) => !v)}
-              className="inline-flex items-center justify-center rounded-button p-2 text-ocean-mist transition-colors hover:text-icy-aqua md:hidden"
-              aria-label={mobileOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileOpen}
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                {mobileOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
-            </button>
+            <Link href="/agent">
+              <Button size="sm" variant="primary">
+                Launch Agent
+              </Button>
+            </Link>
           </div>
+
+          {/* Mobile hamburger */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen((v) => !v)}
+            className="inline-flex items-center justify-center rounded-button p-2 text-ocean-mist transition-colors hover:text-icy-aqua md:hidden"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              {mobileOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
         </div>
 
         {/* Mobile dropdown */}
@@ -112,6 +115,18 @@ export function NavBar({ className }: { className?: string }) {
                   {link.label}
                 </Link>
               ))}
+              <div className="mt-2 flex flex-col gap-2 px-3">
+                <Link href="/docs" onClick={handleLinkClick}>
+                  <Button size="sm" variant="outline" className="w-full">
+                    View Docs
+                  </Button>
+                </Link>
+                <Link href="/agent" onClick={handleLinkClick}>
+                  <Button size="sm" variant="primary" className="w-full">
+                    Launch Agent
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         )}
