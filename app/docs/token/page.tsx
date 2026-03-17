@@ -31,7 +31,7 @@ export default function TokenPage() {
       <section className="space-y-4">
         <H2 id="contract">Contract Address</H2>
         <CodeBlock lang="text" title="$DRIP on Solana">
-          {`DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump`}
+          {`Coming soon — relaunching on PumpFun`}
         </CodeBlock>
         <Callout type="warn">
           Always verify this address before trading. This is the only official
@@ -89,13 +89,13 @@ export default function TokenPage() {
           <li>
             <strong className="text-white">DexScreener</strong> —{" "}
             <Code>
-              dexscreener.com/solana/DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump
+              dexscreener.com/solana/Coming soon — relaunching on PumpFun
             </Code>
           </li>
           <li>
             <strong className="text-white">PumpFun</strong> —{" "}
             <Code>
-              pump.fun/coin/DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump
+              pump.fun/coin/Coming soon — relaunching on PumpFun
             </Code>
           </li>
         </ul>

@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
  * Cached for 60 seconds.
  */
 
-const DRIP_MINT = "DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump";
+const DRIP_MINT = process.env.NEXT_PUBLIC_DRIP_TOKEN_MINT || "";
 const DEXSCREENER_API = `https://api.dexscreener.com/latest/dex/tokens/${DRIP_MINT}`;
 
 interface DexScreenerPair {
