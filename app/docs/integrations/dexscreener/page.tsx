@@ -97,7 +97,7 @@ export default function DexScreenerPage() {
           For $DRIP specifically:
         </p>
         <CodeBlock lang="text" title="$DRIP on DexScreener">
-          {`https://dexscreener.com/solana/DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump`}
+          {`https://dexscreener.com/solana/Coming soon — relaunching on PumpFun`}
         </CodeBlock>
       </section>
 

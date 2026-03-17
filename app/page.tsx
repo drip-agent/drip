@@ -19,8 +19,7 @@ import { fadeIn, slideUp } from "@/lib/motion-variants";
 /* ─── Constants ─── */
 
 const TOKEN_MINT =
-  process.env.NEXT_PUBLIC_DRIP_TOKEN_MINT ||
-  "DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump";
+  process.env.NEXT_PUBLIC_DRIP_TOKEN_MINT || "";
 
 const STATS = [
   { value: "1,000+", label: "Users" },
@@ -294,8 +293,13 @@ function TokenSection() {
       <div className="flex w-full max-w-2xl flex-col items-center gap-2 rounded-card border border-ocean-mist/10 bg-dark-surface px-6 py-4 sm:flex-row sm:justify-between">
         <div>
           <div className="text-xs text-blue-slate">Token Contract Address</div>
-          <div className="mt-1 font-mono text-sm text-white break-all">{TOKEN_MINT}</div>
+          {TOKEN_MINT ? (
+            <div className="mt-1 font-mono text-sm text-white break-all">{TOKEN_MINT}</div>
+          ) : (
+            <div className="mt-1 text-sm text-ocean-mist">Relaunching soon on PumpFun — stay tuned</div>
+          )}
         </div>
+        {TOKEN_MINT ? (
         <button
           type="button"
           onClick={handleCopy}
@@ -311,11 +315,12 @@ function TokenSection() {
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 002 2z"
             />
           </svg>
           {copied ? "Copied!" : "Copy"}
         </button>
+        ) : null}
       </div>
 
       {/* Live market data */}

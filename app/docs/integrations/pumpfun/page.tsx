@@ -31,7 +31,7 @@ export default function PumpFunPage() {
       <section className="space-y-4">
         <H2 id="contract">Contract Address</H2>
         <CodeBlock lang="text" title="$DRIP Token Address">
-          {`DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump`}
+          {`Coming soon — relaunching on PumpFun`}
         </CodeBlock>
         <Callout type="warn">
           Always verify the contract address before trading. The address above
@@ -45,7 +45,7 @@ export default function PumpFunPage() {
           View the token on PumpFun:
         </p>
         <CodeBlock lang="text">
-          {`https://pump.fun/coin/DLo15YaCdSMQ6Ni3j9yHDgAHUzhm4sLFxYeTtwcvpump`}
+          {`https://pump.fun/coin/Coming soon — relaunching on PumpFun`}
         </CodeBlock>
       </section>
 
