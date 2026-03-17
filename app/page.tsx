@@ -829,18 +829,7 @@ export default function Home() {
           </Container>
         </Section>
 
-        {/* ── 7. TOKEN ── */}
-        {TOKEN_MINT && (
-        <Section
-          id="token"
-          heading="The $DRIP Token"
-          subheading="$DRIP powers the research intelligence ecosystem. Hold and use $DRIP to access AI research."
-        >
-          <Container size="narrow">
-            <TokenSection />
-          </Container>
-        </Section>
-        )}
+        {/* ── 7. TOKEN — hidden until PumpFun relaunch ── */}
 
         {/* ── 8. ROADMAP ── */}
         <Section id="roadmap" className="bg-dark-surface/30">
