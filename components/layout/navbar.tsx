@@ -13,6 +13,7 @@ const navLinks = [
   { label: "Token", href: "#token" },
   { label: "Roadmap", href: "#roadmap" },
   { label: "FAQ", href: "#faq" },
+  { label: "PoW", href: "/pow" },
 ];
 
 export function NavBar({ className }: { className?: string }) {
