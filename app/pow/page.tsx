@@ -190,42 +190,65 @@ const UPDATES: Update[] = [
 
 /* ─── Heatmap ─── */
 
-function generateHeatmapData() {
-  const today = new Date(2026, 2, 17); // Mar 17, 2026
-  const days: { date: string; level: number }[] = [];
-
-  // Generate 12 weeks of data
-  for (let w = 11; w >= 0; w--) {
-    for (let d = 0; d < 7; d++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - (w * 7 + (6 - d)));
-      const dateStr = date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      // Check if any updates match this date
-      const matchingUpdates = UPDATES.filter((u) => {
-        const uDate = new Date(u.date + "");
-        return (
-          uDate.getDate() === date.getDate() &&
-          uDate.getMonth() === date.getMonth() &&
-          uDate.getFullYear() === date.getFullYear()
-        );
-      });
-      let level = 0;
-      if (matchingUpdates.length > 0) {
-        const hasHigh = matchingUpdates.some((u) => u.impact === "high");
-        const hasMedium = matchingUpdates.some((u) => u.impact === "medium");
-        level = hasHigh ? 3 : hasMedium ? 2 : 1;
-      }
-      days.push({ date: dateStr, level });
-    }
+// Build a date→level map from UPDATES
+function buildActivityMap() {
+  const map: Record<string, number> = {};
+  for (const u of UPDATES) {
+    const key = u.date;
+    const prev = map[key] || 0;
+    const val = u.impact === "high" ? 3 : u.impact === "medium" ? 2 : 1;
+    if (val > prev) map[key] = val;
   }
-  return days;
+  return map;
 }
 
-const HEATMAP = generateHeatmapData();
+const ACTIVITY_MAP = buildActivityMap();
+
+// Generate calendar grid: columns = weeks, rows = days (Mon-Sun)
+// Show from Dec 22, 2025 (Mon) to Mar 17, 2026 (current)
+function generateCalendar() {
+  const start = new Date(2025, 11, 22); // Mon Dec 22, 2025
+  const end = new Date(2026, 2, 17); // Mar 17, 2026
+  const weeks: { date: Date; dateStr: string; level: number }[][] = [];
+  let currentWeek: { date: Date; dateStr: string; level: number }[] = [];
+
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const dateStr = cursor.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    // Match against UPDATES date format "Mar 15, 2026"
+    const fmtStr = cursor.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    // Normalize — UPDATES use "Mar 15, 2026" format
+    const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const matchStr = `${monthNames[cursor.getMonth()]} ${cursor.getDate()}, ${cursor.getFullYear()}`;
+
+    const level = ACTIVITY_MAP[matchStr] || 0;
+
+    currentWeek.push({ date: new Date(cursor), dateStr: fmtStr, level });
+
+    // Sunday = end of week
+    if (cursor.getDay() === 0) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  if (currentWeek.length > 0) {
+    weeks.push(currentWeek);
+  }
+
+  return weeks;
+}
+
+const CALENDAR = generateCalendar();
 
 const LEVEL_COLORS: Record<number, string> = {
   0: "bg-dark-elevated",
@@ -357,33 +380,74 @@ export default function ProofOfWork() {
               ))}
             </div>
 
-            {/* Heatmap */}
+            {/* Heatmap Calendar */}
             <div className="mt-16">
               <h2 className="font-heading text-xl font-bold text-white">
                 Activity Heatmap
               </h2>
               <p className="mt-2 text-sm text-blue-slate">
-                Last 12 weeks of development activity
+                Development activity since project start
               </p>
 
               <div className="mt-6 overflow-x-auto">
-                <div className="inline-grid grid-cols-12 gap-1.5">
-                  {Array.from({ length: 12 }, (_, weekIdx) => (
-                    <div key={weekIdx} className="flex flex-col gap-1.5">
-                      {Array.from({ length: 7 }, (_, dayIdx) => {
-                        const idx = weekIdx * 7 + dayIdx;
-                        const cell = HEATMAP[idx];
-                        if (!cell) return null;
-                        return (
-                          <div
-                            key={dayIdx}
-                            className={`h-4 w-4 rounded-sm ${LEVEL_COLORS[cell.level]}`}
-                            title={`${cell.date} — ${cell.level === 0 ? "No activity" : cell.level === 1 ? "Low" : cell.level === 2 ? "Medium" : "High"}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
+                <div className="flex gap-1">
+                  {/* Day labels */}
+                  <div className="flex flex-col gap-1 pr-2 pt-6">
+                    {["Mon", "", "Wed", "", "Fri", "", "Sun"].map((d, i) => (
+                      <div
+                        key={i}
+                        className="flex h-[14px] items-center text-[10px] text-blue-slate"
+                      >
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Weeks */}
+                  <div className="flex gap-1">
+                    {CALENDAR.map((week, weekIdx) => {
+                      // Month label on first week of each month
+                      const firstDay = week[0]?.date;
+                      const showMonth =
+                        weekIdx === 0 ||
+                        (firstDay &&
+                          CALENDAR[weekIdx - 1]?.[0]?.date.getMonth() !==
+                            firstDay.getMonth());
+                      const monthLabel = firstDay
+                        ? firstDay.toLocaleDateString("en-US", { month: "short" })
+                        : "";
+
+                      return (
+                        <div key={weekIdx} className="flex flex-col gap-1">
+                          {/* Month label */}
+                          <div className="h-5 text-[10px] text-blue-slate">
+                            {showMonth ? monthLabel : ""}
+                          </div>
+
+                          {/* Pad start of first week */}
+                          {weekIdx === 0 &&
+                            week[0] &&
+                            Array.from(
+                              { length: (week[0].date.getDay() + 6) % 7 },
+                              (_, i) => (
+                                <div
+                                  key={`pad-${i}`}
+                                  className="h-[14px] w-[14px]"
+                                />
+                              )
+                            )}
+
+                          {week.map((day, dayIdx) => (
+                            <div
+                              key={dayIdx}
+                              className={`h-[14px] w-[14px] rounded-sm ${LEVEL_COLORS[day.level]} ${day.level > 0 ? "ring-1 ring-aquamarine/10" : ""}`}
+                              title={`${day.dateStr}${day.level === 0 ? "" : day.level === 1 ? " — Low activity" : day.level === 2 ? " — Medium activity" : " — High activity"}`}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Legend */}
