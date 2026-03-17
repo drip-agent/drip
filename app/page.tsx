@@ -245,7 +245,7 @@ function TerminalMockup() {
         <div className="text-soft-cyan">
           AI Signal: Solana BULLISH with HIGH confidence
         </div>
-        <div className="text-blue-slate">$DRIP: DLo15YaCdSMQ6Ni...pump</div>
+        <div className="text-blue-slate">$DRIP: relaunching soon</div>
       </div>
     </div>
   );
@@ -289,17 +289,13 @@ function TokenSection() {
 
   return (
     <div className="flex flex-col items-center gap-10">
-      {/* Contract address */}
+      {/* Contract address — only show when CA is set */}
+      {TOKEN_MINT && (
       <div className="flex w-full max-w-2xl flex-col items-center gap-2 rounded-card border border-ocean-mist/10 bg-dark-surface px-6 py-4 sm:flex-row sm:justify-between">
         <div>
           <div className="text-xs text-blue-slate">Token Contract Address</div>
-          {TOKEN_MINT ? (
-            <div className="mt-1 font-mono text-sm text-white break-all">{TOKEN_MINT}</div>
-          ) : (
-            <div className="mt-1 text-sm text-ocean-mist">Relaunching soon on PumpFun — stay tuned</div>
-          )}
+          <div className="mt-1 font-mono text-sm text-white break-all">{TOKEN_MINT}</div>
         </div>
-        {TOKEN_MINT ? (
         <button
           type="button"
           onClick={handleCopy}
@@ -320,8 +316,8 @@ function TokenSection() {
           </svg>
           {copied ? "Copied!" : "Copy"}
         </button>
-        ) : null}
       </div>
+      )}
 
       {/* Live market data */}
       {market && (
